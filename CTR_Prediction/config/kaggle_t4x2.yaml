@@ -12,30 +12,37 @@ environment:
   pin_memory: true
 
 paths:
-  raw_train_gz: /kaggle/input/competitions/avazu-ctr-prediction/train.gz
-  raw_test_gz: /kaggle/input/competitions/avazu-ctr-prediction/test.gz
-  processed_dir: /kaggle/input/datasets/w4ngggg/data-processed/data/processed
+  # Raw parquet files produced by the user's chunked .gz conversion (21 files)
+  raw_parquet_dir: /kaggle/working/avazu_parquet
+  # Vocab-encoded parquets + metadata.json (output of prepare_from_parquet.py)
+  processed_dir: /kaggle/working/avazu_processed
+  # Vocab file (auto-written by prepare_from_parquet.py)
+  vocab_path: /kaggle/working/avazu_processed/vocab.json
   output_dir: /kaggle/working/outputs
 
 data:
   dataset: avazu
   target_col: click
   id_col: id
-  compression: gzip
-  chunksize: 250000
   train_ratio: 0.8
   valid_ratio: 0.1
   test_ratio: 0.1
-  convert_to_parquet: true
-  parquet_rows_per_file: 1000000
   drop_id: true
   parse_hour: true
-  use_hashing: true
-  max_rows:
+  # Encoding strategy: vocab=true replaces hashing trick
+  use_vocab: true
+  use_hashing: false
+  min_freq: 4            # categories with < 4 occurrences → UNK (index 0)
+  split_strategy: time   # time-based split on 'hour' column (8:1:1)
 
 features:
+  # Derived from 'hour' column (day, hour_of_day, weekday) — first 3 fields
+  derived_cols:
+    - day
+    - hour_of_day
+    - weekday
+  # Original categorical columns (hex strings in raw Avazu)
   categorical_cols:
-    - hour
     - C1
     - banner_pos
     - site_id
@@ -57,10 +64,7 @@ features:
     - C19
     - C20
     - C21
-  derived_cols:
-    - day
-    - hour_of_day
-    - weekday
+  # Hash-based fallbacks (used only when use_vocab=false)
   hash_bucket_default: 100000
   hash_buckets:
     device_ip: 1000000
@@ -84,21 +88,21 @@ features:
     C18: 8
     device_type: 8
     device_conn_type: 8
-    day: 31
+    day: 32
     hour_of_day: 24
     weekday: 7
 
+# Model: aligned with paper settings
 model:
   name: nafi
-  embedding_dim: 16
-  hidden_units: [128, 64, 32]
-  dropout: 0.2
+  embedding_dim: 16      # paper uses k=16
+  dropout: 0.1
   l2_reg: 0.00001
 
 nam:
   enabled: true
-  hidden_units: [32, 16]
-  activation: exu
+  hidden_units: [32, 32, 32]  # paper: 3 FC layers, 32-unit each
+  activation: exu             # ExU activation (paper)
   exu_max_value: 1.0
   exu_weight_clip: 10.0
   dropout: 0.1
@@ -128,7 +132,7 @@ distillation:
 
 training:
   batch_size: 2048
-  epochs: 10
+  epochs: 5
   optimizer: adam
   learning_rate: 0.001
   loss: logloss
