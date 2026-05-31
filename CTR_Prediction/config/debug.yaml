@@ -1,0 +1,88 @@
+project:
+  name: ctr-avazu-nafi
+  seed: 42
+  mode: debug
+      
+paths:
+  raw_train_gz: /kaggle/input/competitions/avazu-ctr-prediction/train.gz
+  raw_test_gz: /kaggle/input/competitions/avazu-ctr-prediction/test.gz
+  processed_dir: /kaggle/working/data/processed_debug
+  output_dir: /kaggle/working/outputs
+
+data:
+  target_col: click
+  id_col: id
+  compression: gzip
+  chunksize: 100000
+  train_ratio: 0.8
+  valid_ratio: 0.1
+  test_ratio: 0.1
+  parquet_rows_per_file: 200000
+  drop_id: true
+  parse_hour: true
+  use_hashing: true
+  max_rows: 200000
+
+features:
+  categorical_cols: [hour, C1, banner_pos, site_id, site_domain, site_category, app_id, app_domain, app_category, device_id, device_ip, device_model, device_type, device_conn_type, C14, C15, C16, C17, C18, C19, C20, C21]
+  derived_cols: [day, hour_of_day, weekday]
+  hash_bucket_default: 10000
+  hash_buckets:
+    device_ip: 100000
+    device_id: 50000
+    device_model: 20000
+    site_category: 100
+    app_category: 100
+    day: 31
+    hour_of_day: 24
+    weekday: 7
+
+model:
+  name: nafi
+  embedding_dim: 8
+  hidden_units: [64, 32]
+  dropout: 0.2
+
+nam:
+  hidden_units: [16, 8]
+  activation: exu
+  exu_max_value: 1.0
+  exu_weight_clip: 10.0
+  dropout: 0.1
+
+fin:
+  num_heads: 2
+  num_layers: 1
+  attention_dropout: 0.1
+  use_residual: true
+
+xdeepfm:
+  cin_layers: [8, 8]
+
+distillation:
+  enabled: false
+  temperature: 4.0
+  alpha: 0.5
+  ensemble_mode: uniform
+  adaptive_hidden_units: [4]
+  adaptive_learning_rate: 0.001
+  adaptive_loss_weight: 1.0
+  teacher_models: [deepfm, xdeepfm, autoint]
+
+training:
+  batch_size: 1024
+  epochs: 1
+  learning_rate: 0.001
+  gradient_accumulation_steps: 1
+  mixed_precision: true
+  max_grad_norm: 5.0
+  early_stopping:
+    enabled: false
+    patience: 1
+
+environment:
+  num_workers: 0
+  pin_memory: true
+
+checkpoint:
+  save_best_only: true
