@@ -12,8 +12,8 @@ environment:
   pin_memory: true
 
 paths:
-  # Raw parquet files produced by the user's chunked .gz conversion (21 files)
-  raw_parquet_dir: /kaggle/working/avazu_parquet
+  # Raw parquet files (21 files: train_part_0.parquet → train_part_20.parquet)
+  raw_parquet_dir: /kaggle/input/datasets/hoangzy/ctr-parquet/avazu_parquet
   # Vocab-encoded parquets + metadata.json (output of prepare_from_parquet.py)
   processed_dir: /kaggle/working/avazu_processed
   # Vocab file (auto-written by prepare_from_parquet.py)
