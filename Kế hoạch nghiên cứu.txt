@@ -1,0 +1,39 @@
+﻿Em chào thầy, trong quá trình tìm hiểu các nghiên cứu để làm đồ án thì tụi em đang hướng thú với paper này.
+Tên: Accurate and interpretable CTR prediction via distilled neural additive feature interaction network | Journal of Big Data | Springer Nature Link
+
+Tạp chí: Journal of Big Data (Q1)  26/9/2025
+DOI: https://doi.org/10.1186/s40537-025-01281-9
+Dữ liệu: Criteo, Avazu ( đều được public dataset)
+
+
+Mục tiêu bài toán:
+* Giải quyết bài toán CTR (Click-through rate) dự đoán khả năng một người nhấp vào 1 quảng cáo hoặc 1 sản phẩm trong 1 kịch bản nào đó.
+* Solution của nhóm tác giả là 1 mô hình có thể giải thích được (interpretable model)
+* Kết quả SOTA trên các bô
+Method giải quyết bài toán:
+* Nhóm tác giả trình bày mô hình NAFI, gồm 2 module, 1 là module dựa trên mạng NAM (Neural Additive Model) các feature sau khi đi qua lớp embedding sẽ có đi qua 1 mạng MLP có nghĩa từng feature sẽ có từng ấy mạng MLP sau đó đi qua activation -> đo được từng đóng góp của feature đến output. Module thứ 2 là FIN dựa trên multihead-attention mechanism -> dùng để đánh giá sự tác động của các feature với nhau.
+  
+
+* Từ đó họ đề xuất phương pháp Knowledge Distillation trên mô hình NAFI này với tên là KD-NAFI
+Hướng thực hiện đồ án: 
+* Ban đầu, em có ý tưởng cải tiến là áp dụng mạng Kolmogorov-Arnold Networks (KAN). Mạng KAN là phương pháp mới ra đời năm 2024.
+
+
+Ý tưởng chính của KAN: Thay vì dùng neuron với trọng số + activation cố định như MLP, KAN học các hàm 1D (thường là spline) trên từng cạnh (edge) -> Mỗi connection không còn là số (weight) mà là một hàm học được.
+
+
+* Sau đó, trong quá trình tiếp tục literature review thì tụi em research thêm được paper
+Beyond KAN: Introducing KarSein for Adaptive High-Order Feature Interaction Modeling in CTR Prediction | ACM Transactions on Information Systems
+Tạp chí :ACM Transactions on Information Systems Q1 30/12/2025
+
+
+* Method xử lý của họ giải quyết các vấn đề của mạng KAN truyền thống
+Hỗ trợ Vector Nhúng: Không giống như các mạng KAN truyền thống xử lý dữ liệu vô hướng, KarSein mở rộng kiến trúc để hỗ trợ các vector nhúng (embedding vectors) hai chiều, vốn là tiêu chuẩn trong dữ liệu CTR.
+Cơ chế Nhân Cặp (Pairwise Multiplication): KarSein tích hợp một bước nhân cặp tùy chọn ở các lớp đầu tiên để tạo ra "định kiến nhân" (multiplicative bias), giúp mạng dễ dàng học được các mối quan hệ tích số giữa các đặc trưng.
+Cấu trúc Thưa Hiệu Quả: Mô hình tối ưu hóa việc phân bổ hàm kích hoạt để giảm thiểu chi phí tính toán, cho phép triển khai trên các tập dữ liệu có hàng triệu mẫu và hàng trăm trường đặc trưng.
+Khả năng Giải thích và Loại bỏ Dư thừa: Dựa trên nền tảng của KAN, KarSein có khả năng "biểu tượng hóa" (symbolification) các hàm đã học và tự động loại bỏ các tương tác không đóng góp vào kết quả dự báo (feature de-redundancy).
+
+
+
+
+* Do đã có paper áp dụng KAN vào bài toán này, nên hiện tại em chưa suy nghĩ ra được research gap tiếp tục cho paper thứ hai này
