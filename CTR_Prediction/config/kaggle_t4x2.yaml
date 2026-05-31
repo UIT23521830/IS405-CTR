@@ -32,7 +32,7 @@ data:
   # Encoding strategy: vocab=true replaces hashing trick
   use_vocab: true
   use_hashing: false
-  min_freq: 4            # categories with < 4 occurrences → UNK (index 0)
+  min_freq: 2            # categories with < 2 occurrences → UNK (index 0)
   split_strategy: time   # time-based split on 'hour' column (8:1:1)
 
 features:
