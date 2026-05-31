@@ -8,16 +8,25 @@ from typing import Any
 import pandas as pd
 import torch
 
-from src.data.preprocess import clean_chunk
 from src.data.metadata import load_metadata
-from src.data.schema import DTYPE_MAP
-from src.features.hashing import hash_features
+from src.features.feature_map import build_field_dims, get_feature_cols
+from src.features.vocab_encoder import VocabEncoder
 from src.models.base import build_model
 from src.training.checkpoint import load_checkpoint
 from src.utils.config import ensure_dirs, load_config
 from src.utils.logger import get_logger
 from src.utils.memory import log_memory_usage
 
+# Copy from prepare_from_parquet.py to ensure identical parsing
+def parse_hour(df: pd.DataFrame) -> pd.DataFrame:
+    if "hour" not in df.columns:
+        return df
+    hour_str = df["hour"].astype(str).str.zfill(8)
+    parsed = pd.to_datetime(hour_str, format="%y%m%d%H", errors="coerce")
+    df["day"] = parsed.dt.day.fillna(0).clip(0, 31).astype("int32")
+    df["hour_of_day"] = parsed.dt.hour.fillna(0).clip(0, 23).astype("int32")
+    df["weekday"] = parsed.dt.weekday.fillna(0).clip(0, 6).astype("int32")
+    return df
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Predict Avazu competition test.gz and write submission.csv.")
@@ -69,13 +78,21 @@ def main() -> None:
         raise FileNotFoundError(f"Competition test.gz not found: {test_path}")
 
     data_cfg = config.get("data", {})
-    feature_cfg = config.get("features", {})
-    project_cfg = config.get("project", {})
     target_col = data_cfg.get("target_col", "click")
     id_col = data_cfg.get("id_col", "id")
     chunksize = int(args.chunksize or data_cfg.get("chunksize", 250000))
     batch_size = int(args.batch_size or config.get("training", {}).get("batch_size", 2048))
     feature_cols = metadata["feature_cols"]
+
+    # Load vocab if enabled
+    use_vocab = data_cfg.get("use_vocab", False)
+    encoder = None
+    if use_vocab:
+        vocab_path = config.get("paths", {}).get("vocab_path")
+        if not vocab_path or not Path(vocab_path).exists():
+            raise FileNotFoundError(f"Vocab mode enabled but vocab_path not found: {vocab_path}")
+        logger.info("Loading VocabEncoder from %s", vocab_path)
+        encoder = VocabEncoder.load(vocab_path)
 
     model_name = args.model or config.get("model", {}).get("name", "nafi")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -88,14 +105,12 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wrote_header = False
     total_rows = 0
-    dtype_map = {key: value for key, value in DTYPE_MAP.items() if key != target_col}
-    dtype_map[id_col] = "string"
 
     reader = pd.read_csv(
         test_path,
         compression="gzip",
         chunksize=chunksize,
-        dtype=dtype_map,
+        dtype=str,  # Read everything as string first to match prepare config
     )
 
     for chunk_idx, chunk in enumerate(reader):
@@ -103,24 +118,31 @@ def main() -> None:
             raise ValueError(f"Missing required id column in competition test file: {id_col}")
         ids = chunk[id_col].copy()
 
-        inference_cfg = dict(config)
-        inference_cfg["data"] = dict(data_cfg)
-        inference_cfg["data"]["drop_id"] = True
-        chunk = clean_chunk(chunk, inference_cfg)
-        chunk = hash_features(
-            chunk,
-            feature_cols=feature_cols,
-            hash_buckets=feature_cfg.get("hash_buckets", {}),
-            default_bucket=int(feature_cfg.get("hash_bucket_default", 100000)),
-            seed=int(project_cfg.get("seed", 42)),
-        )
+        # Parse hour
+        chunk = parse_hour(chunk)
+
+        if use_vocab and encoder:
+            # Transform categorical columns based on vocab
+            chunk = encoder.transform(chunk)
+        else:
+            # Fallback to older logic if not vocab
+            from src.features.hashing import hash_features
+            feature_cfg = config.get("features", {})
+            project_cfg = config.get("project", {})
+            chunk = hash_features(
+                chunk,
+                feature_cols=feature_cols,
+                hash_buckets=feature_cfg.get("hash_buckets", {}),
+                default_bucket=int(feature_cfg.get("hash_bucket_default", 100000)),
+                seed=int(project_cfg.get("seed", 42)),
+            )
 
         missing = [col for col in feature_cols if col not in chunk.columns]
         if missing:
             raise ValueError(f"Missing feature columns after preprocessing test chunk: {missing}")
 
         probs = predict_chunk(model, chunk, feature_cols, batch_size, device, use_amp)
-        pd.DataFrame({id_col: ids.astype(str).to_numpy(), "click": probs}).to_csv(
+        pd.DataFrame({id_col: ids.astype(str).to_numpy(), target_col: probs}).to_csv(
             output_path,
             mode="w" if not wrote_header else "a",
             index=False,
@@ -133,7 +155,6 @@ def main() -> None:
 
     logger.info("submission_done path=%s rows=%d", output_path, total_rows)
     print(f"wrote {output_path} rows={total_rows}")
-
 
 if __name__ == "__main__":
     main()
