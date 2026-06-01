@@ -94,7 +94,7 @@ def prepare_from_parquet(
 
     data_cfg = config.get("data", {})
     project_cfg = config.get("project", {})
-    min_freq = int(config.get("features", {}).get("min_freq", 4))
+    min_freq = int(data_cfg.get("min_freq", 4))
     train_ratio = float(data_cfg.get("train_ratio", 0.8))
     valid_ratio = float(data_cfg.get("valid_ratio", 0.1))
 
